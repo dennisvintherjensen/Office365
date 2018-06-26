@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <title>Fetching data from MS Graph while authenticated in SharePoint Online</title>
+    <style>
+      html {
+        font-size: 62.5%;
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100vh;
+        margin: -1px 0 0 0;
+        padding: 1px 10% 0 10%;
+        background: linear-gradient(135deg, #8E24AA, #6A1B9A);
+        color: #fff;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 1.6rem;
+        text-align: center;
+      }
+
+      h1 {
+        margin: 20px 0;
+        padding-bottom: 20px;
+        border-bottom: 1px dashed rgba(255, 255, 255, .5);
+        font-weight: normal;
+        font-size: 1.3em;
+      }
+
+      ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      li {
+        margin: 5px 0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Fetching data from MS Graph while authenticated in SharePoint Online</h1>
+    <ul>
+      <li>Display Name:
+        <span id="displayName"></span>
+      </li>
+      <li>User Principle Name:
+        <span id="userPrincipalName"></span>
+      </li>
+    </ul>
+    <script src="https://secure.aadcdn.microsoftonline-p.com/lib/1.0.17/js/adal.min.js"></script>
+    <script type="text/javascript">
+      "use strict";
+
+      let SPAdalGraphTest = {};
+
+      // Config
+      SPAdalGraphTest.config = {
+        tenant: 'ba855c12-6632-4279-89da-b5856637dec5',
+        clientId: 'e63bdf4e-0d56-4621-b546-1fb04bbc0f34',
+        endpoints: {
+          graphUri: 'https://graph.microsoft.com'
+        },
+        cacheLocation: "localStorage"
+      };
+
+      // Urls for later reference
+      SPAdalGraphTest.graphUris = {
+        me: 'https://graph.microsoft.com/v1.0/me'
+      };
+
+      // Instantiate Authentication Context
+      SPAdalGraphTest.authContext = new AuthenticationContext(SPAdalGraphTest.config);
+
+      /**
+      * @param {string} endpoint
+      * @returns {Promise} Promise - resolves with token or rejects with error
+      */
+      SPAdalGraphTest.getAuthToken = function (endpoint) {
+        return new Promise(function (resolve, reject) {
+          SPAdalGraphTest.authContext.acquireToken(endpoint, function (error, token) {
+            if (error || !token) {
+              reject(error);
+            } else {
+              resolve(token);
+            }
+          });
+        });
+      }
+
+      /**
+      * @returns {Promise} promise - Resolves with json object 
+      */
+      SPAdalGraphTest.getGraphData = function () {
+        return SPAdalGraphTest.getAuthToken(SPAdalGraphTest.config.endpoints.graphUri).then(function (token) {
+          if (token !== null) {
+            return fetch(SPAdalGraphTest.graphUris.me, {
+              type: 'get',
+              // Add token to headers
+              headers: { Authorization: `Bearer ${token}` }
+            }).then(function (response) {
+              if (response.ok) {
+                return response.json();
+              }
+              throw new Error(`Network response for ${SPAdalGraphTest.graphUris.me} was not ok!`);
+            }).catch(function (error) {
+              console.log(`An error occured: ${error.message}`);
+              throw (error);
+            });
+          }
+        }).catch(function (error) {
+          console.log(`An error occured: ${error.message}`);
+          throw (error);
+        });
+      };
+
+      window.addEventListener('DOMContentLoaded', (event) => {
+        // Check For & Handle Redirect From AAD After Login
+        const isCallback = SPAdalGraphTest.authContext.isCallback(window.location.hash);
+        SPAdalGraphTest.authContext.handleWindowCallback();
+        // Check Login Status
+        const user = SPAdalGraphTest.authContext.getCachedUser();
+        if (!user) {
+          // Log in user
+          SPAdalGraphTest.authContext.login();
+        } else {
+          SPAdalGraphTest.getGraphData().then(function (response) {
+            document.querySelector('#userPrincipalName').innerText = response.userPrincipalName;
+            document.querySelector('#displayName').innerText = response.displayName;
+          }).catch(function (error) {
+            console.log(`An error occured: ${error.message}`);
+          });
+        }
+      });
+    </script>
+  </body>
+
+</html>
